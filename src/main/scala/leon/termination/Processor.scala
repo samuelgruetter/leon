@@ -40,7 +40,7 @@ trait Solvable extends Processor {
     val structDefs = checker.defs
     val program     : Program     = checker.program
     val context     : LeonContext = checker.context
-    val sizeModule  : ModuleDef   = ModuleDef(FreshIdentifier("$size", false), checker.defs.toSeq)
+    val sizeModule  : ModuleDef   = ModuleDef(FreshIdentifier("$size", false), false, checker.defs.toSeq)
     val newProgram  : Program     = program.copy(modules = sizeModule :: program.modules)
 
     (new FairZ3Solver(context, newProgram) with TimeoutAssumptionSolver).setTimeout(500L)

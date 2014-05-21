@@ -138,6 +138,12 @@ class FairZ3Solver(val context : LeonContext, val program: Program)
   private def getTemplate(tfd: TypedFunDef): FunctionTemplate = {
     funDefTemplateCache.getOrElse(tfd, {
       val res = FunctionTemplate.mkTemplate(this, tfd, true)
+      //println("#"*80)
+      //println(tfd.signature)
+      //println(tfd.body.get)
+      //println("- "*40)
+      //println(res)
+      //println("#"*80)
       funDefTemplateCache += tfd -> res
       res
     })
@@ -150,6 +156,12 @@ class FairZ3Solver(val context : LeonContext, val program: Program)
 
       val res = FunctionTemplate.mkTemplate(this, fakeFunDef.typed, false)
       exprTemplateCache += body -> res
+
+      //println("#"*80)
+      //println(body)
+      //println("- "*40)
+      //println(res)
+      //println("#"*80)
       res
     })
   }
@@ -176,7 +188,7 @@ class FairZ3Solver(val context : LeonContext, val program: Program)
       fi.tfd.id.uniqueName+fi.args.mkString("(", ", ", ")")
     }
 
-    def dumpBlockers = {
+    def dumpBlockers() = {
       blockersInfo.groupBy(_._2._1).toSeq.sortBy(_._1).foreach { case (gen, entries) =>
         reporter.debug("--- "+gen)
 
@@ -308,15 +320,13 @@ class FairZ3Solver(val context : LeonContext, val program: Program)
 
       context.reporter.debug(s"   - ${newClauses.size} new clauses")
       //context.reporter.ifDebug { debug =>
-      //  debug(s" - new clauses:")
-      //  debug("@@@@")
       //  for (cl <- newClauses) {
       //    debug(""+cl)
       //  }
-      //  debug("////")
       //}
 
-      //dumpBlockers
+      //dumpBlockers()
+
       //readLine()
 
       newClauses
@@ -364,6 +374,13 @@ class FairZ3Solver(val context : LeonContext, val program: Program)
     frameExpressions = (expression :: frameExpressions.head) :: frameExpressions.tail
 
     val newClauses = unrollingBank.scanForNewTemplates(expression)
+
+    context.reporter.debug(s"   - ${newClauses.size} new clauses")
+    //context.reporter.ifDebug { debug =>
+    //  for (cl <- newClauses) {
+    //    debug(""+cl)
+    //  }
+    //}
 
     for (cl <- newClauses) {
       solver.assertCnstr(cl)
@@ -501,6 +518,12 @@ class FairZ3Solver(val context : LeonContext, val program: Program)
             } else {
               reporter.debug(" - Running search without blocked literals (w/o lucky test)")
             }
+
+            //println("@"*80)
+            //for (f <- solver.getAssertions) {
+            //  println("- "+f)
+            //}
+            //println("&"*80)
 
             solver.push() // FIXME: remove when z3 bug is fixed
             val res2 = solver.checkAssumptions(assumptionsAsZ3 : _*)

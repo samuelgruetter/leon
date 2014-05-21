@@ -30,14 +30,14 @@ sealed abstract class List[T] {
 
   def head: T = {
     require(this != Nil[T]())
-    this match {
+    (this: @unchecked) match {
       case Cons(h, t) => h
     }
   }
 
   def tail: List[T] = {
     require(this != Nil[T]())
-    this match {
+    (this: @unchecked) match {
       case Cons(h, t) => t
     }
   }

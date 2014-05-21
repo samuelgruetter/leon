@@ -28,6 +28,8 @@ object Main {
 
   lazy val topLevelOptions : Set[LeonOptionDef] = Set(
       LeonFlagOptionDef ("termination", "--termination",        "Check program termination"),
+      LeonValueOptionDef("run",         "--run=func",           "Execute program at <func>"),
+      LeonValueOptionDef("classpath",   "--classpath=<paths>",  "Provide paths as additional classpath to internal compilers"),
       LeonFlagOptionDef ("synthesis",   "--synthesis",          "Partial synthesis of choose() constructs"),
       LeonFlagOptionDef ("xlang",       "--xlang",              "Support for extra program constructs (imperative,...)"),
       LeonFlagOptionDef ("library",     "--library",            "Inject Leon standard library"),
@@ -133,6 +135,10 @@ object Main {
 
     // Process options we understand:
     for(opt <- leonOptions) opt match {
+      case LeonValueOption("run", value) =>
+        settings = settings.copy(run = Some(value))
+      case LeonValueOption("classpath", ListValue(cps)) =>
+        settings = settings.copy(classPath = settings.classPath ++ cps)
       case LeonFlagOption("termination", value) =>
         settings = settings.copy(termination = value)
       case LeonFlagOption("synthesis", value) =>
@@ -187,18 +193,23 @@ object Main {
 
   def computePipeline(settings: Settings): Pipeline[List[String], Any] = {
     import purescala.Definitions.Program
+    import purescala.FunctionClosure
     import frontends.scalac.ExtractionPhase
     import synthesis.SynthesisPhase
     import termination.TerminationPhase
     import xlang.XlangAnalysisPhase
     import verification.AnalysisPhase
+    import evaluators.RunnerPhase
 
     val pipeBegin : Pipeline[List[String],Program] =
       ExtractionPhase andThen
       PreprocessingPhase
 
     val pipeProcess: Pipeline[Program, Any] = {
-      if (settings.synthesis) {
+      if (settings.run.isDefined) {
+        FunctionClosure andThen
+        RunnerPhase
+      } else if (settings.synthesis) {
         SynthesisPhase
       } else if (settings.termination) {
         TerminationPhase

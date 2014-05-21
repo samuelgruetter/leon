@@ -34,6 +34,8 @@ object MethodLifting extends TransformationPhase {
         nfd.precondition  = fd.precondition
         nfd.body          = fd.body
 
+        nfd.methodName    = Some(fd.id.name)
+
         nfd.setPos(fd)
         nfd.addAnnotation(fd.annotations.toSeq : _*)
 
@@ -102,7 +104,7 @@ object MethodLifting extends TransformationPhase {
         case _ =>
       }
 
-      ModuleDef(m.id, newDefs)
+      ModuleDef(m.id, m.isPackage, newDefs)
     }
 
     Program(program.id, newModules)

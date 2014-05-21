@@ -39,8 +39,9 @@ case object CEGIS extends Rule("CEGIS") {
     val testUpTo              = 5
     val useBssFiltering       = sctx.options.cegisUseBssFiltering
     val filterThreshold       = 1.0/2
-    val evalParams            = CodeGenParams(maxFunctionInvocations = 2000)
-    val evaluator             = new CodeGenEvaluator(sctx.context, sctx.program, evalParams)
+    //val evalParams            = CodeGenParams(maxFunctionInvocations = 2000)
+    //val evaluator             = new DefaultEvaluator(sctx.context, sctx.program, evalParams)
+    val evaluator             = new DefaultEvaluator(sctx.context, sctx.program)
 
     val interruptManager      = sctx.context.interruptManager
 

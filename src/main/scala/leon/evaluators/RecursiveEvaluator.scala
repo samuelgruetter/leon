@@ -31,6 +31,8 @@ abstract class RecursiveEvaluator(ctx: LeonContext, prog: Program) extends Evalu
     def withVars(news: Map[Identifier, Expr]): RC;
   }
 
+  val scalaEv = new ScalacEvaluator(ctx, prog)
+
   class GlobalContext(var stepsLeft: Int) {
     val maxSteps = stepsLeft
   }
@@ -101,39 +103,55 @@ abstract class RecursiveEvaluator(ctx: LeonContext, prog: Program) extends Evalu
 
       val evArgs = args.map(a => e(a))
 
-      // build a mapping for the function...
-      val frame = rctx.withVars((tfd.params.map(_.id) zip evArgs).toMap)
-      
-      if(tfd.hasPrecondition) {
-        e(matchToIfThenElse(tfd.precondition.get))(frame, gctx) match {
-          case BooleanLiteral(true) =>
-          case BooleanLiteral(false) =>
-            throw RuntimeError("Precondition violation for " + tfd.id.name + " reached in evaluation.: " + tfd.precondition.get)
-          case other => throw RuntimeError(typeErrorMsg(other, BooleanType))
+      def isInstrumentedCall(fd: FunDef, args: Seq[Expr]) = {
+        args.toList match {
+          case ExternalObject(_, _) :: _ if fd.wasMethod => true
+          case _ => false
         }
       }
 
-      if(!tfd.hasBody && !rctx.mappings.isDefinedAt(tfd.id)) {
-        throw EvalError("Evaluation of function with unknown implementation.")
-      }
+      if (tfd.fd.annotations("extern")) {
+        scalaEv.call(tfd, evArgs)
+      } else if (isInstrumentedCall(tfd.fd, evArgs)) {
+        val ExternalObject(o, _) = evArgs.head
+        val realArgs = evArgs.tail
 
-      val body = tfd.body.getOrElse(rctx.mappings(tfd.id))
-      val callResult = e(matchToIfThenElse(body))(frame, gctx)
-
-      if(tfd.hasPostcondition) {
-        val (id, post) = tfd.postcondition.get
-
-        val freshResID = FreshIdentifier("result").setType(tfd.returnType)
-        val postBody = replace(Map(Variable(id) -> Variable(freshResID)), matchToIfThenElse(post))
-
-        e(matchToIfThenElse(post))(frame.withNewVar(id, callResult), gctx) match {
-          case BooleanLiteral(true) =>
-          case BooleanLiteral(false) => throw RuntimeError("Postcondition violation for " + tfd.id.name + " reached in evaluation.")
-          case other => throw EvalError(typeErrorMsg(other, BooleanType))
+        scalaEv.methodCall(tfd, o, realArgs)
+      } else {
+        // build a mapping for the function...
+        val frame = rctx.withVars((tfd.params.map(_.id) zip evArgs).toMap)
+        
+        if(tfd.hasPrecondition) {
+          e(matchToIfThenElse(tfd.precondition.get))(frame, gctx) match {
+            case BooleanLiteral(true) =>
+            case BooleanLiteral(false) =>
+              throw RuntimeError("Precondition violation for " + tfd.id.name + " reached in evaluation.: " + tfd.precondition.get)
+            case other => throw RuntimeError(typeErrorMsg(other, BooleanType))
+          }
         }
-      }
 
-      callResult
+        if(!tfd.hasBody && !rctx.mappings.isDefinedAt(tfd.id)) {
+          throw EvalError("Evaluation of function with unknown implementation.")
+        }
+
+        val body = tfd.body.getOrElse(rctx.mappings(tfd.id))
+        val callResult = e(matchToIfThenElse(body))(frame, gctx)
+
+        if(tfd.hasPostcondition) {
+          val (id, post) = tfd.postcondition.get
+
+          val freshResID = FreshIdentifier("result").setType(tfd.returnType)
+          val postBody = replace(Map(Variable(id) -> Variable(freshResID)), matchToIfThenElse(post))
+
+          e(matchToIfThenElse(post))(frame.withNewVar(id, callResult), gctx) match {
+            case BooleanLiteral(true) =>
+            case BooleanLiteral(false) => throw RuntimeError("Postcondition violation for " + tfd.id.name + " reached in evaluation.")
+            case other => throw EvalError(typeErrorMsg(other, BooleanType))
+          }
+        }
+
+        callResult
+      }
 
     case And(args) if args.isEmpty =>
       BooleanLiteral(true)
@@ -194,6 +212,7 @@ abstract class RecursiveEvaluator(ctx: LeonContext, prog: Program) extends Evalu
       val le = e(expr)
       le match {
         case CaseClass(ct2, args) if ct1 == ct2 => args(ct1.classDef.selectorID2Index(sel))
+        case ExternalObject(o, tpe) => throw EvalError("YAY")
         case _ => throw EvalError(typeErrorMsg(le, ct1))
       }
 
@@ -372,18 +391,19 @@ abstract class RecursiveEvaluator(ctx: LeonContext, prog: Program) extends Evalu
 
       val p = synthesis.Problem.fromChoose(choose)
 
-      ctx.reporter.debug("Executing choose!")
+      ctx.reporter.debug("Runtime constraint solving:")
 
       val tStart = System.currentTimeMillis;
 
       val solver = (new FairZ3Solver(ctx, program) with TimeoutSolver).setTimeout(10000L)
 
-      val inputsMap = p.as.map {
+      p.as.foreach {
         case id =>
-          Equals(Variable(id), rctx.mappings(id))
+          solver.assertCnstr(Equals(Variable(id), rctx.mappings(id)))
       }
 
-      solver.assertCnstr(And(Seq(p.pc, p.phi) ++ inputsMap))
+
+      solver.assertCnstr(And(p.pc, p.phi))
 
       try {
         solver.check match {
@@ -414,6 +434,7 @@ abstract class RecursiveEvaluator(ctx: LeonContext, prog: Program) extends Evalu
         solver.free()
       }
 
+    case eo: ExternalObject => eo
     case other =>
       context.reporter.error(other.getPos, "Error: don't know how to handle " + other + " in Evaluator.")
       throw EvalError("Unhandled case in Evaluator : " + other) 

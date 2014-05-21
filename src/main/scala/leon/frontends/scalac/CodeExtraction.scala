@@ -173,26 +173,28 @@ trait CodeExtraction extends ASTExtractors {
 
     def extractModules: List[LeonModuleDef] = {
       try {
-        val templates: List[(String, List[Tree])] = units.reverse.flatMap { u => u.body match {
+        val templates: List[(String, Boolean, List[Tree])] = units.reverse.flatMap { u => u.body match {
           case PackageDef(name, lst) =>
-            var standaloneDefs = List[Tree]()
+            var standaloneDefs = Map[String, List[Tree]]()
 
-            val modules: List[(String, List[Tree])] = lst.flatMap { _ match {
+            val modules: List[(String, Boolean, List[Tree])] = lst.flatMap { _ match {
               case t if isIgnored(t.symbol) =>
                 None
 
-              case PackageDef(_, List(ExObjectDef(n, templ))) =>
-                Some((n.toString, templ.body))
+              case p @ PackageDef(_, List(t @ ExObjectDef(n, templ))) =>
+                Some((p.symbol.fullName, false, templ.body))
 
-              case ExObjectDef(n, templ) =>
-                Some((n.toString, templ.body))
+              case t @ ExObjectDef(n, templ) =>
+                Some((t.symbol.fullName, false, templ.body))
 
               case d @ ExAbstractClass(_, _, _) =>
-                standaloneDefs ::= d
+                val k = d.symbol.owner.fullName
+                standaloneDefs += (k -> (d :: standaloneDefs.getOrElse(k, Nil))) 
                 None
 
               case d @ ExCaseClass(_, _, _, _) =>
-                standaloneDefs ::= d
+                val k = d.symbol.owner.fullName
+                standaloneDefs += (k -> (d :: standaloneDefs.getOrElse(k, Nil))) 
                 None
 
               case d @ ExCaseClassSyntheticJunk() =>
@@ -203,32 +205,32 @@ trait CodeExtraction extends ASTExtractors {
                 None
             }}.toList
 
-            val extraModules: List[(String, List[Tree])] = if (standaloneDefs.isEmpty) {
+            val extraModules: List[(String, Boolean, List[Tree])] = if (standaloneDefs.isEmpty) {
               Nil
             } else {
-              List(("standalone", standaloneDefs.reverse))
+              standaloneDefs.toList.map { case (name, defs) => (name, true, defs.reverse) }
             }
 
             modules ++ extraModules
         }}
 
         // Phase 1, we detect classes/types
-        templates.foreach{ case (name, templ) => collectClassSymbols(templ) }
+        templates.foreach{ case (_, _, templ) => collectClassSymbols(templ) }
 
         // Phase 2, we collect functions signatures
-        templates.foreach{ case (name, templ) => collectFunSigs(templ) }
+        templates.foreach{ case (_, _, templ) => collectFunSigs(templ) }
 
         // Phase 3, we collect classes/types' definitions
-        templates.foreach{ case (name, templ) => extractClassDefs(templ) }
+        templates.foreach{ case (_, _, templ) => extractClassDefs(templ) }
 
         // Phase 4, we collect methods' definitions
-        templates.foreach{ case (name, templ) => extractMethodDefs(templ) }
+        templates.foreach{ case (_, _, templ) => extractMethodDefs(templ) }
 
         // Phase 5, we collect function definitions
-        templates.foreach{ case (name, templ) => extractFunDefs(templ) }
+        templates.foreach{ case (_, _, templ) => extractFunDefs(templ) }
 
         // Phase 6, we create modules and extract bodies
-        templates.map{ case (name, templ) => extractObjectDef(name, templ) }
+        templates.map{ case (name, isPackage, templ) => extractObjectDef(name, isPackage, templ) }
       } catch {
         case icee: ImpureCodeEncounteredException =>
           icee.emit()
@@ -261,7 +263,7 @@ trait CodeExtraction extends ASTExtractors {
     private def collectClassSymbols(defs: List[Tree]) {
       // We collect all defined classes
       for (t <- defs) t match {
-        case t if isIgnored(t.symbol) =>
+        case t if isIgnored(t.symbol) || isExtern(t.symbol) =>
           // ignore
 
         case ExAbstractClass(o2, sym, tmpl) =>
@@ -277,7 +279,7 @@ trait CodeExtraction extends ASTExtractors {
     private def extractClassDefs(defs: List[Tree]) {
       // We collect all defined classes
       for (t <- defs) t match {
-        case t if isIgnored(t.symbol) =>
+        case t if isIgnored(t.symbol) || isExtern(t.symbol) =>
           // ignore
 
         case ExAbstractClass(o2, sym, _) =>
@@ -488,7 +490,7 @@ trait CodeExtraction extends ASTExtractors {
         }
       }
       for (d <- defs) d match {
-        case t if isIgnored(t.symbol) =>
+        case t if isIgnored(t.symbol) || isExtern(t.symbol) =>
           // ignore
 
         case ExAbstractClass(_, csym, tmpl) =>
@@ -528,10 +530,16 @@ trait CodeExtraction extends ASTExtractors {
       }
     }
 
-    private def extractObjectDef(nameStr: String, defs: List[Tree]): LeonModuleDef = {
+    private def extractObjectDef(nameStr: String, isPackage: Boolean, defs: List[Tree]): LeonModuleDef = {
 
       val newDefs = defs.flatMap{ t => t match {
         case t if isIgnored(t.symbol) =>
+          None
+
+        case ExAbstractClass(_, sym, _) if isExtern(sym) =>
+          None
+
+        case ExCaseClass(_, sym, _, _) if isExtern(sym) =>
           None
 
         case ExAbstractClass(o2, sym, _) =>
@@ -554,12 +562,12 @@ trait CodeExtraction extends ASTExtractors {
         case ExCaseClass(_,_,_,_) =>
         case ExConstructorDef() =>
         case ExFunctionDef(_, _, _, _, _) =>
-        case d if isIgnored(d.symbol) =>
+        case d if isIgnored(d.symbol) || isExtern(d.symbol) =>
         case tree =>
           outOfSubsetError(tree, "Don't know what to do with this. Not purescala?");
       }
 
-      new LeonModuleDef(FreshIdentifier(nameStr), newDefs)
+      new LeonModuleDef(FreshIdentifier(nameStr), isPackage, newDefs)
     }
 
 

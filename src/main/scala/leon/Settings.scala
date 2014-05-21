@@ -3,16 +3,19 @@
 package leon
 
 import utils.DebugSection
+import java.io.File
 
 case class Settings(
   val strictCompilation: Boolean       = true, // Terminates Leon in case an error occured during extraction
   val debugSections: Set[DebugSection] = Set(), // Enables debug message for the following sections
+  val run: Option[String]              = None,
   val termination: Boolean             = false,
   val synthesis: Boolean               = false,
   val xlang: Boolean                   = false,
   val verify: Boolean                  = true,
   val injectLibrary: Boolean           = false,
-  val classPath: List[String]          = Settings.defaultClassPath()
+  val classPath: List[String]          = Settings.defaultClassPath(),
+  val outDir: File                     = new File("out/")
 )
 
 object Settings {

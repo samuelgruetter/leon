@@ -623,4 +623,8 @@ object Trees {
     val fixedType = BooleanType
   }
 
+  case class ExternalObject(o: Any, tpe: TypeTree) extends Expr with FixedType with Terminal { 
+    val fixedType = tpe
+  }
+
 }

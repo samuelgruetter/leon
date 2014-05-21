@@ -38,7 +38,7 @@ object FunctionClosure extends TransformationPhase {
         fd.body = fd.body.map(b => functionClosure(b, fd.params.map(_.id).toSet, Map(), Map()))
       })
 
-      ModuleDef(m.id, m.defs ++ topLevelFuns)
+      ModuleDef(m.id, m.isPackage, m.defs ++ topLevelFuns)
     }
     val res = Program(program.id, newModules)
     res

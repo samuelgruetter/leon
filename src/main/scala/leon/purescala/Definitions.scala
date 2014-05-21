@@ -73,7 +73,7 @@ object Definitions {
 
   /** Objects work as containers for class definitions, functions (def's) and
    * val's. */
-  case class ModuleDef(id: Identifier, defs : Seq[Definition]) extends Definition {
+  case class ModuleDef(id: Identifier, isPackage: Boolean, defs : Seq[Definition]) extends Definition {
     lazy val definedFunctions : Seq[FunDef] = defs.collect { case fd: FunDef => fd }
 
     lazy val definedClasses : Seq[ClassDef] = defs.collect { case ctd: ClassDef => ctd }
@@ -196,6 +196,10 @@ object Definitions {
     def postcondition_=(op: Option[(Identifier, Expr)]) = {
       fullBody = withPostcondition(fullBody, op)
     }
+
+    var methodName: Option[String] = None
+    // Metadata for functions previously methods
+    def wasMethod = methodName.isDefined
 
     // Metadata kept here after transformations
     var parent: Option[FunDef] = None
