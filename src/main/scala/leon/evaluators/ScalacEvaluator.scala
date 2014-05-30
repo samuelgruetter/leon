@@ -125,6 +125,9 @@ class ScalacEvaluator(ctx: LeonContext, pgm: Program) extends LeonComponent {
   }
 
   def leonToScalac(e: Expr): AnyRef = e match {
+    case eo: ExternalObject =>
+      eo
+
     case IntLiteral(v) =>
       new java.lang.Integer(v)
 

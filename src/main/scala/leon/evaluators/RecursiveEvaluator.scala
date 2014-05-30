@@ -434,7 +434,13 @@ abstract class RecursiveEvaluator(ctx: LeonContext, prog: Program) extends Evalu
         solver.free()
       }
 
-    case eo: ExternalObject => eo
+    case eo: ExternalObject =>
+      eo
+
+    case b: Block => // XLang Block, useful for external side-effecting functions
+      b.exprs.foreach(e)
+      e(b.last)
+
     case other =>
       context.reporter.error(other.getPos, "Error: don't know how to handle " + other + " in Evaluator.")
       throw EvalError("Unhandled case in Evaluator : " + other) 
