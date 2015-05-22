@@ -125,19 +125,22 @@ sealed abstract class List[T] {
     )
   }
 
-  private def chunk0(s: BigInt, l: List[T], acc: List[T], res: List[List[T]], s0: BigInt): List[List[T]] = l match {
-    case Nil() =>
-      if (acc.size > 0) {
-        res :+ acc
-      } else {
-        res
-      }
-    case Cons(h, t) =>
-      if (s0 == BigInt(0)) {
-        chunk0(s, l, Nil(), res :+ acc, s)
-      } else {
-        chunk0(s, t, acc :+ h, res, s0-1)
-      }
+  private def chunk0(s: BigInt, l: List[T], acc: List[T], res: List[List[T]], s0: BigInt): List[List[T]] = {
+    require(s > 0 && s0 >= 0)
+    l match {
+      case Nil() =>
+        if (acc.size > 0) {
+          res :+ acc
+        } else {
+          res
+        }
+      case Cons(h, t) =>
+        if (s0 == BigInt(0)) {
+          chunk0(s, t, Cons(h, Nil()), res :+ acc, s-1)
+        } else {
+          chunk0(s, t, acc :+ h, res, s0-1)
+        }
+    }
   }
 
   def chunks(s: BigInt): List[List[T]] = {
