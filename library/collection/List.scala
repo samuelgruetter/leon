@@ -288,18 +288,29 @@ sealed abstract class List[T] {
     (take(c), drop(c))
   }
 
-  def insertAt(pos: BigInt, l: List[T]): List[T] = {
-    if(pos < 0) {
-      insertAt(size + pos, l)
-    } else if(pos == BigInt(0)) {
+  private def insertAtImpl(pos: BigInt, l: List[T]): List[T] = {
+    require(0 <= pos && pos <= size)
+    if(pos == BigInt(0)) {
       l ++ this
     } else {
       this match {
         case Cons(h, t) =>
-          Cons(h, t.insertAt(pos-1, l))
+          Cons(h, t.insertAtImpl(pos-1, l))
         case Nil() =>
           l
       }
+    }
+  } ensuring { res =>
+    res.size == this.size + l.size &&
+    res.content == this.content ++ l.content
+  }
+
+  def insertAt(pos: BigInt, l: List[T]): List[T] = {
+    require(-pos <= size && pos <= size)
+    if(pos < 0) {
+      insertAtImpl(size + pos, l)
+    } else {
+      insertAtImpl(pos, l)
     }
   } ensuring { res =>
     res.size == this.size + l.size &&
