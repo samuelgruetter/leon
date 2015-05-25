@@ -345,6 +345,17 @@ sealed abstract class List[T] {
   }
 
   def rotate(s: BigInt): List[T] = {
+    if (isEmpty) {
+      Nil()
+    } else {
+      val modulo = if (s >= 0) (s % size) else (s % size + size)
+      drop(modulo) ++ take(modulo)
+    }
+  } ensuring { res =>
+    res.size == this.size
+  }
+  /*
+  def rotate(s: BigInt): List[T] = {
     if (s < 0) {
       rotate(size + s)
     } else if (s > size) {
@@ -355,6 +366,7 @@ sealed abstract class List[T] {
   } ensuring { res =>
     res.size == this.size
   }
+  */
 
   def isEmpty = this match { 
     case Nil() => true
